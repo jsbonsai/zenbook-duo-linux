@@ -157,24 +157,25 @@ if [ ! -f "${TAURI_DIR}/Cargo.toml" ]; then
   exit 1
 fi
 
+RELEASE_BUILD_DIR="${CARGO_TARGET_DIR:-${TAURI_DIR}/target}/release"
 echo "Using binaries from the pinned, already completed release build..."
 for binary in zenbook-duo-daemon zenbook-duo-session-agent zenbook-duo-lifecycle zenbook-duo-usb-remap-helper; do
-  [ -x "${TAURI_DIR}/target/release/${binary}" ] || die "Missing release binary ${binary}"
+  [ -x "${RELEASE_BUILD_DIR}/${binary}" ] || die "Missing release binary ${binary}"
 done
 
 echo "Installing Rust runtime binaries..."
 sudo mkdir -p "${RUNTIME_INSTALL_DIR}"
 sudo install -m 0755 \
-  "${TAURI_DIR}/target/release/zenbook-duo-daemon" \
+  "${RELEASE_BUILD_DIR}/zenbook-duo-daemon" \
   "${RUNTIME_INSTALL_DIR}/zenbook-duo-daemon"
 sudo install -m 0755 \
-  "${TAURI_DIR}/target/release/zenbook-duo-session-agent" \
+  "${RELEASE_BUILD_DIR}/zenbook-duo-session-agent" \
   "${RUNTIME_INSTALL_DIR}/zenbook-duo-session-agent"
 sudo install -m 0755 \
-  "${TAURI_DIR}/target/release/zenbook-duo-lifecycle" \
+  "${RELEASE_BUILD_DIR}/zenbook-duo-lifecycle" \
   "${RUNTIME_INSTALL_DIR}/zenbook-duo-lifecycle"
 sudo install -m 0755 \
-  "${TAURI_DIR}/target/release/zenbook-duo-usb-remap-helper" \
+  "${RELEASE_BUILD_DIR}/zenbook-duo-usb-remap-helper" \
   "${RUNTIME_INSTALL_DIR}/zenbook-duo-usb-remap-helper"
 
 echo "Installed Rust runtime versions:"
