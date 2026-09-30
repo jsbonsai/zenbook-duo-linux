@@ -2,7 +2,11 @@ use super::*;
 
 pub(super) fn get_kde_display_layout() -> Result<DisplayLayout, String> {
     let value = compositor::kscreen_json()?;
-    let outputs = compositor::kde_outputs_from_value(&value)?;
+    parse_kde_display_layout(&value)
+}
+
+fn parse_kde_display_layout(value: &serde_json::Value) -> Result<DisplayLayout, String> {
+    let outputs = compositor::kde_outputs_from_value(value)?;
 
     fn parse_kde_mode(value: &serde_json::Value) -> Option<DisplayMode> {
         let width = value
@@ -18,8 +22,18 @@ pub(super) fn get_kde_display_layout() -> Result<DisplayLayout, String> {
         let refresh_rate = value
             .get("refreshRate")
             .and_then(|v| v.as_f64())
-            .map(|rate| rate / 1000.0)?;
-        Some(make_display_mode(width, height, refresh_rate))
+            .map(|rate| if rate > 1000.0 { rate / 1000.0 } else { rate })?;
+        let backend_id = value.get("id").and_then(|id| {
+            id.as_str()
+                .map(str::to_string)
+                .or_else(|| id.as_u64().map(|id| id.to_string()))
+        });
+        Some(make_display_mode_with_backend_id(
+            width,
+            height,
+            refresh_rate,
+            backend_id,
+        ))
     }
 
     let mut displays = Vec::new();
@@ -44,26 +58,42 @@ pub(super) fn get_kde_display_layout() -> Result<DisplayLayout, String> {
             .get("pos")
             .and_then(|v| v.as_object())
             .ok_or_else(|| format!("Missing KDE position for {connector}"))?;
-        let rotation = output
-            .get("rotation")
-            .and_then(|v| v.as_str())
-            .unwrap_or("none");
+        let transform = match output.get("rotation") {
+            Some(value) if value.is_number() => match value.as_u64().unwrap_or(1) {
+                2 => 270,
+                4 => 180,
+                8 => 90,
+                _ => 0,
+            },
+            Some(value) => match value.as_str().unwrap_or("none") {
+                "right" => 90,
+                "left" => 270,
+                "inverted" => 180,
+                _ => 0,
+            },
+            None => 0,
+        };
         let scale = output.get("scale").and_then(|v| v.as_f64()).unwrap_or(1.0);
-        let current_mode = output
+        let mode_value = output
             .get("currentMode")
-            .and_then(parse_kde_mode)
-            .unwrap_or_else(|| {
-                make_display_mode(
-                    size.get("width").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-                    size.get("height").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-                    output
-                        .get("currentMode")
-                        .and_then(|mode| mode.get("refreshRate"))
-                        .and_then(|v| v.as_f64())
-                        .map(|rate| rate / 1000.0)
-                        .unwrap_or(60.0),
-                )
+            .filter(|mode| mode.is_object())
+            .or_else(|| {
+                let id = output.get("currentModeId")?;
+                let modes = output.get("modes")?.as_array()?;
+                modes.iter().find(|mode| mode.get("id") == Some(id))
             });
+        let current_mode = mode_value.and_then(parse_kde_mode).unwrap_or_else(|| {
+            make_display_mode(
+                size.get("width").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                size.get("height").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                output
+                    .get("currentMode")
+                    .and_then(|mode| mode.get("refreshRate"))
+                    .and_then(|v| v.as_f64())
+                    .map(|rate| if rate > 1000.0 { rate / 1000.0 } else { rate })
+                    .unwrap_or(60.0),
+            )
+        });
         let available_modes = dedupe_modes(
             output
                 .get("modes")
@@ -80,12 +110,7 @@ pub(super) fn get_kde_display_layout() -> Result<DisplayLayout, String> {
             scale,
             x: pos.get("x").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
             y: pos.get("y").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
-            transform: match rotation {
-                "right" => 90,
-                "left" => 270,
-                "inverted" => 180,
-                _ => 0,
-            },
+            transform,
             primary: output.get("priority").and_then(|v| v.as_i64()).unwrap_or(0) == 1,
             current_mode,
             available_modes,
@@ -103,7 +128,9 @@ pub(super) fn apply_kde_display_layout(layout: &DisplayLayout) -> Result<(), Str
     }
 
     let mut args: Vec<String> = Vec::new();
-    let available_outputs = kde_output_names()?;
+    let value = compositor::kscreen_json()?;
+    let outputs = compositor::kde_outputs_from_value(&value)?;
+    let available_outputs = compositor::kde_output_names_from_value(&value)?;
     for connector in omitted_output_names(layout, &available_outputs) {
         args.push(format!("output.{connector}.disable"));
     }
@@ -119,7 +146,14 @@ pub(super) fn apply_kde_display_layout(layout: &DisplayLayout) -> Result<(), Str
         args.push(format!("output.{}.enable", display.connector));
         args.push(format!(
             "output.{}.mode.{}",
-            display.connector, display.current_mode.mode_id
+            display.connector,
+            kde_mode_argument(
+                display,
+                outputs
+                    .iter()
+                    .find(|output| output.get("name").and_then(|v| v.as_str())
+                        == Some(display.connector.as_str()))
+            )
         ));
         args.push(format!(
             "output.{}.position.{},{}",
@@ -146,6 +180,41 @@ pub(super) fn apply_kde_display_layout(layout: &DisplayLayout) -> Result<(), Str
     }
 
     run_command("kscreen-doctor", &args)
+}
+
+fn kde_mode_argument(display: &DisplayInfo, output: Option<&serde_json::Value>) -> String {
+    if let Some(modes) = output
+        .and_then(|output| output.get("modes"))
+        .and_then(|modes| modes.as_array())
+    {
+        for mode in modes {
+            let width = mode
+                .get("size")
+                .and_then(|size| size.get("width"))
+                .and_then(|v| v.as_u64());
+            let height = mode
+                .get("size")
+                .and_then(|size| size.get("height"))
+                .and_then(|v| v.as_u64());
+            let rate = mode
+                .get("refreshRate")
+                .and_then(|v| v.as_f64())
+                .map(|rate| if rate > 1000.0 { rate / 1000.0 } else { rate });
+            if width == Some(display.current_mode.width as u64)
+                && height == Some(display.current_mode.height as u64)
+                && rate.is_some_and(|rate| (rate - display.current_mode.refresh_rate).abs() < 0.01)
+            {
+                if let Some(id) = mode.get("id").and_then(|id| {
+                    id.as_str()
+                        .map(str::to_string)
+                        .or_else(|| id.as_u64().map(|id| id.to_string()))
+                }) {
+                    return id;
+                }
+            }
+        }
+    }
+    display.current_mode.mode_id.clone()
 }
 
 fn kde_output_logical_size(name: &str) -> Result<(i64, i64), String> {
@@ -215,6 +284,45 @@ pub(super) fn set_kde_orientation(orientation: &Orientation) -> Result<(), Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_kscreen_hertz_current_mode_id_and_numeric_rotation() {
+        let value = serde_json::json!({"outputs": [{
+            "name": "eDP-1", "enabled": true,
+            "size": {"width": 2880, "height": 1800},
+            "pos": {"x": 0, "y": 0}, "rotation": 2,
+            "scale": 1.6, "priority": 1, "currentModeId": "27",
+            "modes": [
+                {"id": "27", "size": {"width": 2880, "height": 1800}, "refreshRate": 120.0},
+                {"id": "28", "size": {"width": 2880, "height": 1800}, "refreshRate": 60.001}
+            ]
+        }]});
+        let layout = parse_kde_display_layout(&value).expect("current KScreen layout");
+        let display = &layout.displays[0];
+        assert_eq!(display.refresh_rate, 120.0);
+        assert_eq!(display.current_mode.mode_id, "2880x1800@120");
+        assert_eq!(display.current_mode.backend_mode_id.as_deref(), Some("27"));
+        assert_eq!(display.transform, 270);
+        assert_eq!(display.available_modes[1].refresh_rate, 60.001);
+        let bottom = serde_json::json!({"name":"eDP-2","modes":[
+            {"id":"1","size":{"width":2880,"height":1800},"refreshRate":120.0}
+        ]});
+        // A cloned top-panel mode ID must be resolved against the bottom panel.
+        assert_eq!(kde_mode_argument(display, Some(&bottom)), "1");
+    }
+
+    #[test]
+    fn preserves_legacy_millihertz_current_mode_and_string_rotation() {
+        let value = serde_json::json!({"outputs": [{
+            "name": "eDP-1", "enabled": true,
+            "size": {"width": 2880, "height": 1800},
+            "pos": {"x": 0, "y": 0}, "rotation": "left",
+            "currentMode": {"width": 2880, "height": 1800, "refreshRate": 120000.0}
+        }]});
+        let layout = parse_kde_display_layout(&value).expect("legacy KScreen layout");
+        assert_eq!(layout.displays[0].refresh_rate, 120.0);
+        assert_eq!(layout.displays[0].transform, 270);
+    }
 
     #[test]
     fn missing_primary_geometry_is_an_error_for_secondary_positioning() {
