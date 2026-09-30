@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
+import { useWindowActive } from "@/hooks/use-window-active";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -19,6 +20,7 @@ const profileLabels: Record<string, string> = { "power-saver": "Quiet", balanced
 const value = (n: number | null | undefined, unit = "", digits = 0) => n == null ? "Unavailable" : `${n.toFixed(digits)}${unit}`;
 
 export default function Power() {
+  const active = useWindowActive();
   const [status, setStatus] = useState<PowerStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -36,10 +38,14 @@ export default function Power() {
   }, []);
   useEffect(() => {
     alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
+  useEffect(() => {
+    if (!active) return;
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 3000);
-    return () => { alive.current = false; window.clearInterval(timer); };
-  }, [refresh]);
+    const timer = window.setInterval(() => void refresh(), 10000);
+    return () => window.clearInterval(timer);
+  }, [refresh, active]);
   const change = async (action: Action) => {
     if (writeInProgress.current) return;
     writeInProgress.current = true; setBusy(true);
@@ -98,7 +104,7 @@ export default function Power() {
           <Metric name="Full capacity" reading={value(status.energyFullWh, " Wh", 2)} />
           <Metric name="Design capacity" reading={value(status.energyDesignWh, " Wh", 2)} />
         </dl>
-        <p className="mt-4 text-xs text-muted-foreground">Updates every three seconds. Battery health is the reported full capacity divided by design capacity.</p>
+        <p className="mt-4 text-xs text-muted-foreground">Updates every 10 seconds while this window is active. Battery health is the reported full capacity divided by design capacity.</p>
       </div>
     </>}
   </div>;

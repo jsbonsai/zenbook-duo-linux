@@ -2,7 +2,9 @@
   "$schema": "https://raw.githubusercontent.com/nicedoc/tauri/refs/heads/dev/crates/tauri-utils/schema.json",
   "identifier": "default",
   "description": "Default permissions for the Zenbook Duo Control app",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "core:window:allow-minimize",
@@ -10,6 +12,7 @@
     "core:window:allow-close",
     "core:window:allow-start-dragging",
     "shell:allow-spawn",
-    "shell:allow-execute"
+    "shell:allow-execute",
+    "core:window:allow-is-focused"
   ]
 }

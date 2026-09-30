@@ -68,7 +68,6 @@ export default function ThemeToggle() {
             aria-hidden
             className={cn(
               "size-1.5 rounded-full bg-primary shadow-[0_0_6px_currentColor] text-primary",
-              currentTheme === "system" && "animate-pulse-glow",
             )}
           />
           {currentLabel}

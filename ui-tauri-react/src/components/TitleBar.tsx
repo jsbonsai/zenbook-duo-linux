@@ -111,7 +111,7 @@ export default function TitleBar() {
           className={cn(
             "size-1.5 rounded-full transition-colors duration-300",
             linkUp
-              ? "bg-primary text-primary shadow-[0_0_6px_currentColor] animate-pulse-glow"
+              ? "bg-primary text-primary shadow-[0_0_6px_currentColor]"
               : "bg-muted-foreground/40",
           )}
         />
