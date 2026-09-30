@@ -31,6 +31,10 @@ pub enum DaemonRequest {
         phase: LifecyclePhase,
     },
     GetStatus,
+    GetPowerStatus,
+    SetPowerControl {
+        action: crate::hardware::power::PowerAction,
+    },
     GetVersion,
     GetDisplayLayout,
     GetSettings,
@@ -77,6 +81,9 @@ pub enum DaemonRequest {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum DaemonResponse {
     Pong,
+    PowerStatus {
+        status: crate::hardware::power::PowerStatus,
+    },
     Ack,
     Status {
         status: DuoStatus,

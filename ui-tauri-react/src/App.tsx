@@ -4,6 +4,7 @@ import Sidebar from "@/components/Sidebar";
 import TitleBar from "@/components/TitleBar";
 import Status from "@/pages/Status";
 import Controls from "@/pages/Controls";
+import Power from "@/pages/Power";
 import Settings from "@/pages/Settings";
 import Logs from "@/pages/Logs";
 import DisplayLayout from "@/pages/DisplayLayout";
@@ -20,6 +21,7 @@ import {
 export type Page =
   | "status"
   | "controls"
+  | "power"
   | "settings"
   | "logs"
   | "display"
@@ -30,6 +32,7 @@ export type Page =
 const pageComponents: Record<Page, React.ComponentType> = {
   status: Status,
   controls: Controls,
+  power: Power,
   settings: Settings,
   logs: Logs,
   display: DisplayLayout,
@@ -39,7 +42,7 @@ const pageComponents: Record<Page, React.ComponentType> = {
 };
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<Page>("status");
+  const [currentPage, setCurrentPage] = useState<Page>("power");
 
   useStoreInit();
   const store = useStore();

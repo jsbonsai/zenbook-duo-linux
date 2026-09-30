@@ -60,6 +60,8 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::power::get_power_status,
+            commands::power::set_power_control,
             commands::status::get_status,
             commands::backlight::get_backlight,
             commands::backlight::set_backlight,

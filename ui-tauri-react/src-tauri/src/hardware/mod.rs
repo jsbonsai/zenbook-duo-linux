@@ -3,3 +3,5 @@ pub mod duo;
 pub mod hid;
 pub mod sysfs;
 pub mod touchscreen;
+
+pub mod power;

@@ -10,3 +10,5 @@ pub mod status;
 pub mod theme;
 pub mod touchscreen;
 pub mod usb_media_remap;
+
+pub mod power;

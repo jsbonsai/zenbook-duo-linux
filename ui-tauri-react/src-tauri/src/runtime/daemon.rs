@@ -39,6 +39,9 @@ pub async fn run() -> Result<(), String> {
         .map_err(|e| format!("Failed to bind daemon socket: {e}"))?;
     configure_daemon_socket(paths::daemon_socket_path().as_path())
         .map_err(|e| format!("Failed to configure daemon socket: {e}"))?;
+    if let Err(e) = hardware::power::restore() {
+        log::warn!("Power preference restore failed: {e}");
+    }
     let state = Arc::new(RwLock::new(initialize_state()));
     crate::runtime::bluetooth_hotkeys::start(state.clone());
     crate::runtime::monitor::start(state.clone());
@@ -104,6 +107,11 @@ pub(super) async fn dispatch_request(
     state: Arc<RwLock<RuntimeState>>,
 ) -> DaemonResponse {
 match payload {
+    DaemonRequest::GetPowerStatus => DaemonResponse::PowerStatus { status: hardware::power::status() },
+    DaemonRequest::SetPowerControl { action } => match hardware::power::set(action) {
+        Ok(status) => DaemonResponse::PowerStatus { status },
+        Err(message) => DaemonResponse::Error { message },
+    },
     DaemonRequest::Ping => DaemonResponse::Pong,
     DaemonRequest::HandleLifecycle { phase } => match DisplayReplayPolicy::handle_lifecycle(&state, phase).await
     {
@@ -329,6 +337,10 @@ async fn handle_lifecycle(
             Ok(())
         }
         LifecyclePhase::Post | LifecyclePhase::Thaw | LifecyclePhase::Boot => {
+            if let Err(e) = hardware::power::restore() {
+                log::warn!("Power preference restore on resume failed: {e}");
+                logger::append_line(format!("power restore failed: {e}")).ok();
+            }
             logger::append_line(format!("rust-daemon: lifecycle -> {:?}", phase)).ok();
             if lifecycle_should_queue_usb_media_remap_retry(&phase) {
                 crate::runtime::monitor::queue_usb_media_remap_resume_retry(state.clone());
