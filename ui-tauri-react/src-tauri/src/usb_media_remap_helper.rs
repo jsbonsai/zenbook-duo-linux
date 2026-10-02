@@ -226,7 +226,30 @@ fn handle_event(
         }
         Key::KEY_F11 => {
             if value == 1 {
-                open_emoji_picker(args.user.as_deref());
+                dispatch_desktop_action(args.user.as_deref(), "emoji");
+            }
+            return Ok(());
+        }
+        Key::KEY_F7 | Key::KEY_F8 | Key::KEY_F9 | Key::KEY_F10 | Key::KEY_F12 => {
+            let desktop = crate::commands::desktop::load_desktop_settings();
+            let configured = match key {
+                Key::KEY_F7 => Some(&desktop.f7_action),
+                Key::KEY_F8 => Some(&desktop.f8_action),
+                Key::KEY_F12 => Some(&desktop.f12_action),
+                _ => None,
+            };
+            if configured.map(|a| a == "none").unwrap_or(false) {
+                return emit_key(uinput, key, value);
+            }
+            if value == 1 {
+                let action = match key {
+                    Key::KEY_F7 => "f7",
+                    Key::KEY_F8 => "f8",
+                    Key::KEY_F9 => "toggle_touchpad",
+                    Key::KEY_F10 => "mic_mute",
+                    _ => "f12",
+                };
+                dispatch_desktop_action(args.user.as_deref(), action);
             }
             return Ok(());
         }
@@ -284,6 +307,7 @@ fn maybe_step_brightness_after_native_event(
     let after = read_primary_brightness().ok();
     if brightness_fallback_needed(before, after) {
         step_brightness(direction)?;
+        dispatch_desktop_action(None, "brightness");
     }
     Ok(())
 }
@@ -423,54 +447,53 @@ fn cycle_backlight() {
     let next = (level + 1) % 4;
     if crate::commands::backlight::set_backlight_daemon_first(next).is_ok() {
         let _ = fs::write(&kbl_level_path, next.to_string());
+        dispatch_desktop_action(None, "keyboard_brightness");
     }
 }
 
-fn open_emoji_picker(user: Option<&str>) {
-    let user = match user {
-        Some(u) => u,
-        None => return,
+/// Route desktop actions to the logged-in session rather than launching GUI apps as root.
+pub(crate) fn dispatch_desktop_action(user: Option<&str>, action: &str) {
+    let target = user
+        .map(str::to_owned)
+        .or_else(|| env::var("ZENBOOK_DUO_USER").ok())
+        .or_else(|| {
+            let args = parse_args(env::args().skip(1));
+            args.user
+        });
+    let Some(user) = target else {
+        return;
     };
-
-    let uid = match nix::unistd::User::from_name(user) {
+    let uid = match nix::unistd::User::from_name(&user) {
         Ok(Some(u)) => u.uid.as_raw(),
         _ => return,
     };
-
-    let is_running = Command::new("pgrep")
-        .arg("-u")
-        .arg(uid.to_string())
-        .arg("-x")
-        .arg("gnome-characters")
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false);
-
-    if is_running {
-        return;
-    }
-
-    let runtime_dir = format!("/run/user/{uid}");
-    let bus_address = format!("unix:path={runtime_dir}/bus");
-
     let mut cmd = if nix::unistd::Uid::current().is_root() {
-        let mut cmd = Command::new("runuser");
-        cmd.arg("-u").arg(user).arg("--").arg("env");
-        cmd
+        let mut c = Command::new("runuser");
+        c.args(["-u", &user, "--", "env"]);
+        c
     } else {
         Command::new("env")
     };
-
-    cmd.arg(format!("XDG_RUNTIME_DIR={runtime_dir}"))
-        .arg(format!("DBUS_SESSION_BUS_ADDRESS={bus_address}"));
-
-    if Path::new(&format!("{runtime_dir}/wayland-0")).exists() {
-        cmd.arg("WAYLAND_DISPLAY=wayland-0");
-    } else if Path::new("/tmp/.X11-unix/X0").exists() {
-        cmd.arg("DISPLAY=:0");
-    }
-
-    let _ = cmd.arg("gnome-characters").spawn();
+    cmd.arg(format!("XDG_RUNTIME_DIR=/run/user/{uid}"))
+        .arg(format!(
+            "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus"
+        ))
+        .args([
+            "qdbus6",
+            "org.jsbonsai.ZenbookDuo",
+            "/Desktop",
+            "org.jsbonsai.ZenbookDuo.Desktop.Action",
+            action,
+        ]);
+    // Media-key processing must not block while a desktop application launches.
+    std::thread::spawn(move || match cmd.output() {
+        Ok(out) if out.status.success() => {}
+        Ok(out) => log_error(&format!(
+            "Desktop key action failed: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        )),
+        Err(e) => log_error(&format!("Desktop key action failed: {e}")),
+    });
 }
 
 fn current_time_ms() -> u128 {

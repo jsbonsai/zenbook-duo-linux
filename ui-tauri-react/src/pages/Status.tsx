@@ -1,4 +1,7 @@
-import { useMemo } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { useWindowActive } from "@/hooks/use-window-active";
+import type { PowerStatus } from "@/pages/Power";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { formatVersion } from "@/lib/version";
@@ -28,6 +31,23 @@ const cardAccents = {
 
 export default function Status() {
   const store = useStore();
+  const active = useWindowActive();
+  const [power, setPower] = useState<PowerStatus | null>(null);
+  const [powerError, setPowerError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false; let pending = false;
+    const refresh = async () => {
+      if (pending) return; pending = true;
+      try { const next = await invoke<PowerStatus>("get_power_status"); if (!cancelled) { setPower(next); setPowerError(null); } }
+      catch (e) { if (!cancelled) { setPower(null); setPowerError(String(e)); } }
+      finally { pending = false; }
+    };
+    void refresh(); const timer = window.setInterval(() => void refresh(), 10000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [active]);
+  const profile = power?.profile ? ({ "power-saver": "Quiet", balanced: "Balanced", performance: "Performance" }[power.profile] || power.profile) : "Unavailable";
+  const reading = (n: number | null | undefined, suffix = "") => n == null ? "Unavailable" : `${Math.round(n)}${suffix}`;
   const {
     isUsb,
     remapBusy,
@@ -235,6 +255,19 @@ export default function Status() {
               </div>
             </StatusRow>
           </div>
+        </div>
+
+        <div className="glass-card rounded-xl border-l-[3px] border-l-amber-500/40 p-5">
+          <h3 className="mb-4 text-[13px] font-semibold">Performance & battery</h3>
+          {powerError ? <p role="alert" className="text-xs text-destructive">Power status unavailable: {powerError}</p> : <div className="space-y-3">
+            <StatusRow label="Firmware profile"><span className="rounded-md bg-muted px-2 py-0.5 font-mono text-xs">{profile}</span></StatusRow>
+            <StatusRow label="Turbo"><span className="font-mono text-xs">{power?.turboEnabled == null ? "Unavailable" : power.turboEnabled ? "Enabled" : "Disabled"}</span></StatusRow>
+            <StatusRow label="CPU temperature"><span className="font-mono text-xs">{reading(power?.cpuTemperature, "°C")}</span></StatusRow>
+            <StatusRow label="Fans"><span className="font-mono text-xs">{power?.fanRpm.length ? power.fanRpm.map(n => `${n} RPM`).join(" / ") : "Unavailable"}</span></StatusRow>
+            <StatusRow label="Battery"><span className="font-mono text-xs">{reading(power?.batteryPercent, "%")} · {power?.batteryStatus || "Unavailable"}</span></StatusRow>
+            <StatusRow label="Charge ceiling"><span className="font-mono text-xs">{reading(power?.chargeLimit, "%")}</span></StatusRow>
+            <StatusRow label="Battery health"><span className="font-mono text-xs">{reading(power?.batteryHealth, "%")}</span></StatusRow>
+          </div>}
         </div>
 
         {/* Service */}

@@ -20,6 +20,7 @@ const navItems: { id: Page; label: string; icon: React.ComponentType<{ className
   { id: "display", label: "Displays", icon: IconDeviceDesktop },
   { id: "controls", label: "Controls", icon: IconAdjustments },
   { id: "profiles", label: "Duo profiles", icon: IconUsers },
+  { id: "desktop", label: "Desktop & keyboard", icon: IconLayout },
   { id: "power", label: "Power & battery", icon: IconBolt },
   { id: "settings", label: "Settings", icon: IconSettings },
   { id: "logs", label: "Logs", icon: IconFileText },

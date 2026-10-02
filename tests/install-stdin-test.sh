@@ -210,7 +210,13 @@ for binary_hook in \
   'src/bin/usb-media-remap.rs:print_and_exit_if_requested("usb-media-remap")'; do
   binary_path="${binary_hook%%:*}"
   hook="${binary_hook#*:}"
-  if ! grep -Fq "${hook}" "${ROOT_DIR}/ui-tauri-react/src-tauri/${binary_path}"; then
+  if ! python3 - "${ROOT_DIR}/ui-tauri-react/src-tauri/${binary_path}" "${hook}" <<'PY_CHECK'
+import pathlib,re,sys
+name=re.search(r'"([^"]+)"',sys.argv[2]).group(1)
+pattern=r'print_and_exit_if_requested\(\s*"'+re.escape(name)+r'"\s*,?\s*\)'
+sys.exit(0 if re.search(pattern,pathlib.Path(sys.argv[1]).read_text()) else 1)
+PY_CHECK
+  then
     echo "FAIL: runtime binary ${binary_path} should support --version" >&2
     exit 1
   fi

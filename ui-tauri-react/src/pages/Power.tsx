@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Preferences = { profile: string | null; turboEnabled: boolean | null; chargeLimit: number | null };
-type PowerStatus = {
+export type PowerStatus = {
   profile: string | null; availableProfiles: string[]; turboEnabled: boolean | null;
   chargeLimit: number | null; batteryPercent: number | null; batteryStatus: string | null;
   batteryHealth: number | null; batteryCycles: number | null; energyFullWh: number | null;

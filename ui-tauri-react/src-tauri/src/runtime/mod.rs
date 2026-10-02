@@ -19,3 +19,4 @@ pub(crate) mod session_ipc;
 pub(crate) mod session_watchers;
 pub mod state;
 pub mod version;
+pub mod desktop;

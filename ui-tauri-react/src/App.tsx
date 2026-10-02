@@ -4,6 +4,7 @@ import Sidebar from "@/components/Sidebar";
 import TitleBar from "@/components/TitleBar";
 import Status from "@/pages/Status";
 import Controls from "@/pages/Controls";
+import Desktop from "@/pages/Desktop";
 import Power from "@/pages/Power";
 import Settings from "@/pages/Settings";
 import Logs from "@/pages/Logs";
@@ -21,6 +22,7 @@ import {
 export type Page =
   | "status"
   | "controls"
+  | "desktop"
   | "power"
   | "settings"
   | "logs"
@@ -33,6 +35,7 @@ const pageComponents: Record<Page, React.ComponentType> = {
   status: Status,
   controls: Controls,
   power: Power,
+  desktop: Desktop,
   settings: Settings,
   logs: Logs,
   display: DisplayLayout,

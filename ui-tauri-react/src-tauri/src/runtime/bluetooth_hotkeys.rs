@@ -21,6 +21,8 @@ enum BluetoothHotkeyAction {
     BacklightCycle,
     BrightnessDown,
     BrightnessUp,
+    ScreenSwap,
+    OpenCodex,
 }
 
 pub(crate) fn start(state: Arc<RwLock<RuntimeState>>) {
@@ -141,6 +143,8 @@ fn parse_hotkey_report(report: &[u8]) -> Option<BluetoothHotkeyAction> {
         REPORT_BACKLIGHT_CYCLE => Some(BluetoothHotkeyAction::BacklightCycle),
         REPORT_BRIGHTNESS_DOWN => Some(BluetoothHotkeyAction::BrightnessDown),
         REPORT_BRIGHTNESS_UP => Some(BluetoothHotkeyAction::BrightnessUp),
+        0x9c => Some(BluetoothHotkeyAction::ScreenSwap),
+        0x86 => Some(BluetoothHotkeyAction::OpenCodex),
         _ => None,
     }
 }
@@ -161,9 +165,23 @@ fn handle_action(
     }
 
     match action {
-        BluetoothHotkeyAction::BacklightCycle => cycle_backlight(state),
+        BluetoothHotkeyAction::BacklightCycle => {
+            cycle_backlight(state)?;
+            crate::usb_media_remap_helper::dispatch_desktop_action(None, "keyboard_brightness");
+            Ok(())
+        }
         BluetoothHotkeyAction::BrightnessDown | BluetoothHotkeyAction::BrightnessUp => {
-            step_brightness(action, state)
+            step_brightness(action, state)?;
+            crate::usb_media_remap_helper::dispatch_desktop_action(None, "brightness");
+            Ok(())
+        }
+        BluetoothHotkeyAction::ScreenSwap => {
+            crate::usb_media_remap_helper::dispatch_desktop_action(None, "f8");
+            Ok(())
+        }
+        BluetoothHotkeyAction::OpenCodex => {
+            crate::usb_media_remap_helper::dispatch_desktop_action(None, "f12");
+            Ok(())
         }
     }
 }
@@ -239,7 +257,9 @@ fn next_brightness_value(current: u32, max: u32, action: BluetoothHotkeyAction) 
     match action {
         BluetoothHotkeyAction::BrightnessUp => current.saturating_add(step).min(max),
         BluetoothHotkeyAction::BrightnessDown => current.saturating_sub(step),
-        BluetoothHotkeyAction::BacklightCycle => current,
+        BluetoothHotkeyAction::BacklightCycle
+        | BluetoothHotkeyAction::ScreenSwap
+        | BluetoothHotkeyAction::OpenCodex => current,
     }
 }
 

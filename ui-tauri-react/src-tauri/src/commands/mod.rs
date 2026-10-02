@@ -12,3 +12,4 @@ pub mod touchscreen;
 pub mod usb_media_remap;
 
 pub mod power;
+pub mod desktop;

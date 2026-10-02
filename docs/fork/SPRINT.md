@@ -30,6 +30,8 @@ Owner: jsbonsai. Upstream: zakstam/zenbook-duo-linux. Initial target: KDE Plasma
 
 ## Remaining decisions and evidence
 
-F7 and F12 legends/events are not yet established for this physical keyboard. ASUS documents that hotkey functions vary by model; consult the UX8406CA manual and capture the device events before mapping. F8 meaning is pending user preference. Custom HUD styling can follow native OSD validation if needed.
+v0.4.0 implements the app controls, desktop actions, typing guard and installation path. User reported the live typing-guard preview works well. The remaining acceptance checks above require post-install physical validation.
+
+F7 and F12 legends/events are not yet established for this physical keyboard. ASUS documents that hotkey functions vary by model; consult the UX8406CA manual and capture the device events before mapping. F8 defaults to swapping windows; a selector also offers swapping desktop positions or cycling stacked/side-by-side layouts. Custom HUD styling can follow native OSD validation if needed.
 
 References: https://www.asus.com/us/supportonly/ux8406ca/helpdesk_manual/ and https://www.asus.com/us/support/faq/1044480/ .

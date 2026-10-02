@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL_DEFAULT="https://github.com/zakstam/zenbook-duo-linux.git"
+REPO_URL_DEFAULT="https://github.com/jsbonsai/zenbook-duo-linux.git"
 BRANCH_DEFAULT=""
 
 SCRIPT_PATH="${BASH_SOURCE[0]:-${0}}"

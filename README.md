@@ -1,4 +1,4 @@
-> **jsbonsai fork:** Adds local power/battery controls, KDE display fixes, dashboard efficiency improvements and USB remapper repairs. See [fork development notes](docs/fork/DEVELOPMENT.md) and the [desktop sprint](docs/fork/SPRINT.md). Original upstream documentation follows.
+> **jsbonsai fork · v0.4.0:** Adds power/battery controls, KDE display and touch fixes, independent wallpapers, keyboard actions and native HUD feedback, plus a tap-to-click typing guard for the Duo keyboard. See [development/install notes](docs/fork/DEVELOPMENT.md) and the [desktop sprint](docs/fork/SPRINT.md). Original upstream documentation follows.
 
 # Linux for the ASUS Zenbook Duo
 

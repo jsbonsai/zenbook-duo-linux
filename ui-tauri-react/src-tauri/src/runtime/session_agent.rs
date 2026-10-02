@@ -31,6 +31,8 @@ pub async fn run() -> Result<(), String> {
 
     let backend = BackendReadiness::wait_for_ready_backend().await;
     register_with_daemon(backend).await?;
+    let _desktop_connection = crate::runtime::desktop::connect().await?;
+    crate::runtime::desktop::start();
     session_watchers::start_all();
 
     loop {
