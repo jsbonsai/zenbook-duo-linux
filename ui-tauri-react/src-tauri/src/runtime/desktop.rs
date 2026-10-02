@@ -401,7 +401,72 @@ fn guard_active(enabled: bool, elapsed: Option<Duration>, delay_ms: u64) -> bool
             .map(|d| d < Duration::from_millis(delay_ms))
             .unwrap_or(false)
 }
+// Observe confirmed state changes: firmware and older remappers can bypass KDE's
+// shortcut handlers. Reusing Plasma's OSD also coalesces native shortcut feedback.
+fn audio_state(output: &str) -> Option<(u32, bool)> {
+    let volume: f64 = output.split_whitespace().nth(1)?.parse().ok()?;
+    if !volume.is_finite() || volume < 0.0 {
+        return None;
+    }
+    Some(((volume * 100.0).round() as u32, output.contains("[MUTED]")))
+}
+fn start_feedback() {
+    std::thread::spawn(|| {
+        let mut previous = None;
+        loop {
+            let volume = run("wpctl", &["get-volume", "@DEFAULT_AUDIO_SINK@"])
+                .ok()
+                .and_then(|s| audio_state(&s));
+            let microphone = run("wpctl", &["get-volume", "@DEFAULT_AUDIO_SOURCE@"])
+                .ok()
+                .and_then(|s| audio_state(&s));
+            let brightness = crate::hardware::sysfs::read_display_brightness();
+            let keyboard = crate::hardware::sysfs::read_backlight_level();
+            let current = (volume, microphone, brightness, keyboard);
+            if let Some(old) = previous {
+                let (old_volume, old_microphone, old_brightness, old_keyboard) = old;
+                if volume != old_volume {
+                    if let Some((percent, muted)) = volume {
+                        let result = if muted {
+                            hint("audio-volume-muted", "Sound muted")
+                        } else {
+                            osd("volumeChanged", &[&percent.to_string()])
+                        };
+                        if let Err(e) = result {
+                            log::warn!("Duo volume feedback: {e}");
+                        }
+                    }
+                }
+                if microphone != old_microphone {
+                    if let Some((_, muted)) = microphone {
+                        let _ = hint(
+                            if muted {
+                                "microphone-sensitivity-muted"
+                            } else {
+                                "audio-input-microphone"
+                            },
+                            if muted {
+                                "Microphone muted"
+                            } else {
+                                "Microphone enabled"
+                            },
+                        );
+                    }
+                }
+                if brightness != old_brightness {
+                    let _ = action("brightness");
+                }
+                if keyboard != old_keyboard {
+                    let _ = action("keyboard_brightness");
+                }
+            }
+            previous = Some(current);
+            std::thread::sleep(Duration::from_millis(350));
+        }
+    });
+}
 pub fn start() {
+    start_feedback();
     let shared = std::sync::Arc::new(std::sync::Mutex::new((
         load_desktop_settings(),
         Vec::<Touchpad>::new(),
@@ -523,6 +588,13 @@ pub fn start() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn audio_feedback_parses_actual_state() {
+        assert_eq!(audio_state("Volume: 0.42"), Some((42, false)));
+        assert_eq!(audio_state("Volume: 1.10 [MUTED]"), Some((110, true)));
+        assert_eq!(audio_state("Volume: NaN"), None);
+        assert_eq!(audio_state("device unavailable"), None);
+    }
     #[test]
     fn guard_restores_taps_after_idle_or_disable() {
         assert!(guard_active(true, Some(Duration::from_millis(100)), 750));

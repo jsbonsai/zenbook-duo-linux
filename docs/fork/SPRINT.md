@@ -35,3 +35,7 @@ v0.4.0 implements the app controls, desktop actions, typing guard and installati
 F7 and F12 legends/events are not yet established for this physical keyboard. ASUS documents that hotkey functions vary by model; consult the UX8406CA manual and capture the device events before mapping. F8 defaults to swapping windows; a selector also offers swapping desktop positions or cycling stacked/side-by-side layouts. Custom HUD styling can follow native OSD validation if needed.
 
 References: https://www.asus.com/us/supportonly/ux8406ca/helpdesk_manual/ and https://www.asus.com/us/support/faq/1044480/ .
+
+### Feedback compatibility
+
+The session agent observes confirmed speaker/microphone and primary screen/keyboard brightness changes every 350 ms and forwards changes to Plasma OSD. This covers firmware and legacy handlers that bypass KDE shortcuts, including changes from desktop sliders. It seeds initial state without displaying startup banners and honors the extra feedback toggle. Native and forwarded feedback reuse the same Plasma widget.
