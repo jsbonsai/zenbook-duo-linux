@@ -32,6 +32,8 @@ for p in pathlib.Path('/proc').iterdir():
 PY
 systemctl --user stop zenbook-duo-session-preview.service 2>/dev/null || true
 systemctl --user stop zenbook-duo-session-agent.service
+rm -f -- "$HOME/.config/systemd/user/zenbook-duo-session-agent.service.d/sprint-preview.conf"
+systemctl --user daemon-reload
 sudo systemctl stop zenbook-duo-rust-daemon.service
 TASK_STOPPED=true
 recover_services() {
