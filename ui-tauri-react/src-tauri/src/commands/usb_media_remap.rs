@@ -11,6 +11,8 @@ use crate::ipc::protocol::{DaemonRequest, DaemonResponse};
 use crate::runtime::client;
 use crate::runtime::paths;
 
+static REMAP_OPERATION: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 const HELPER_BINARY_NAME: &str = "zenbook-duo-usb-remap-helper";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,6 +60,9 @@ pub fn get_status() -> UsbMediaRemapStatus {
 }
 
 pub fn start_remap() -> Result<(), String> {
+    let _operation = REMAP_OPERATION
+        .lock()
+        .map_err(|_| "Remapper operation lock poisoned".to_string())?;
     if get_status().running {
         return Ok(());
     }
@@ -89,6 +94,9 @@ pub fn start_remap() -> Result<(), String> {
 }
 
 pub fn stop_remap() -> Result<(), String> {
+    let _operation = REMAP_OPERATION
+        .lock()
+        .map_err(|_| "Remapper operation lock poisoned".to_string())?;
     // Clean up pause file on stop.
     let _ = fs::remove_file(pause_file_path());
 
@@ -386,7 +394,9 @@ fn find_running_helper_pid(pid_path: &str) -> Option<u32> {
         let Ok(pid) = name.to_string_lossy().parse::<u32>() else {
             continue;
         };
-        let cmdline = fs::read(entry.path().join("cmdline")).ok()?;
+        let Ok(cmdline) = fs::read(entry.path().join("cmdline")) else {
+            continue;
+        };
         if cmdline.is_empty() {
             continue;
         }
@@ -409,7 +419,7 @@ fn helper_args_match_pid_file(args: &[String], pid_path: &str) -> bool {
     let Some(exe) = args.first() else {
         return false;
     };
-    if !exe.ends_with(HELPER_BINARY_NAME) {
+    if !exe.ends_with(HELPER_BINARY_NAME) || args.iter().any(|arg| arg == "--stop") {
         return false;
     }
 
@@ -441,4 +451,22 @@ fn log_error<T: Into<String>>(message: T) -> String {
         let _ = writeln!(file, "{} - USB-REMAP - ERROR: {}", timestamp, message);
     }
     message
+}
+
+#[cfg(test)]
+mod process_tests {
+    use super::*;
+    #[test]
+    fn recovery_ignores_stop_process_and_other_pid_files() {
+        let path = "/tmp/duo-regression.pid";
+        let mut args = vec![
+            "/usr/local/libexec/zenbook-duo/zenbook-duo-usb-remap-helper".into(),
+            "--pid-file".into(),
+            path.into(),
+        ];
+        assert!(helper_args_match_pid_file(&args, path));
+        assert!(!helper_args_match_pid_file(&args, "/tmp/another.pid"));
+        args.push("--stop".into());
+        assert!(!helper_args_match_pid_file(&args, path));
+    }
 }

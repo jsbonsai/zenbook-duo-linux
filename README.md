@@ -1,3 +1,5 @@
+> **jsbonsai fork:** Adds local power/battery controls, KDE display fixes, dashboard efficiency improvements and USB remapper repairs. See [fork development notes](docs/fork/DEVELOPMENT.md) and the [desktop sprint](docs/fork/SPRINT.md). Original upstream documentation follows.
+
 # Linux for the ASUS Zenbook Duo
 
 This project adds better Linux support for the Zenbook Duo by running a small background service that reacts to the keyboard being attached/detached (USB or Bluetooth) and keeps the dual-screen experience usable.

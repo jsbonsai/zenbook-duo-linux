@@ -151,6 +151,15 @@ pub(crate) async fn reconcile_usb_media_remap(state: Arc<RwLock<RuntimeState>>) 
                 }
             }
             Err(err) => {
+                // A physical detach can race the status probe and helper launch.
+                // Let the next monitor pass reconcile the disconnected device.
+                let current = crate::runtime::probe::current_status();
+                if !current.keyboard_attached
+                    || !matches!(current.connection_type, ConnectionType::Usb)
+                {
+                    let _ = logger::append_line("rust-daemon: USB keyboard detached during remapper startup; retry on reconnect");
+                    return;
+                }
                 log::warn!("failed to auto-start usb media remap: {err}");
                 crate::runtime::daemon::notify_runtime_error(
                     &state,

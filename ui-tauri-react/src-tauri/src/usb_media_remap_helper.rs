@@ -109,6 +109,10 @@ where
                 continue;
             }
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(e) if e.raw_os_error() == Some(libc::ENODEV) => {
+                log_info("USB keyboard disconnected; stopping helper");
+                break;
+            }
             Err(e) => return Err(format!("Failed to read events: {e}")),
         };
         let paused = pause_file.exists();
@@ -301,7 +305,7 @@ fn emit_key(uinput: &mut evdev::uinput::VirtualDevice, key: Key, value: i32) -> 
 fn write_pid(path: &str) -> Result<(), String> {
     if let Ok(existing) = fs::read_to_string(path) {
         if let Ok(pid) = existing.trim().parse::<i32>() {
-            if unsafe { libc::kill(pid, 0) } == 0 {
+            if pid != std::process::id() as i32 && unsafe { libc::kill(pid, 0) } == 0 {
                 return Err(format!("Remapper already running (pid {})", pid));
             }
         }
@@ -553,6 +557,15 @@ fn ensure_dir(dir: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn accepts_own_pid_written_by_startup_recovery() {
+        let path = std::env::temp_dir().join(format!("duo-own-pid-{}.pid", std::process::id()));
+        fs::write(&path, std::process::id().to_string()).unwrap();
+        let result = write_pid(path.to_str().unwrap());
+        let _ = fs::remove_file(&path);
+        assert!(result.is_ok(), "{result:?}");
+    }
 
     #[test]
     fn brightness_step_uses_five_percent_chunks() {
