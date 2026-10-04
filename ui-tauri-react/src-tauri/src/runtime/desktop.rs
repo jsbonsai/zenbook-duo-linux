@@ -484,23 +484,18 @@ fn start_feedback() {
     std::thread::spawn(|| {
         let mut previous = None;
         loop {
-            let current = (
-                crate::hardware::sysfs::read_display_brightness(),
-                crate::hardware::sysfs::read_backlight_level(),
-            );
-            if let Some((brightness, keyboard)) = previous {
-                if brightness != current.0 {
-                    let _ = action("brightness");
-                }
-                if keyboard != current.1 {
-                    let _ = action("keyboard_brightness");
-                }
+            // Screen brightness feedback belongs to explicit key actions. Watching
+            // sysfs also captures idle dim/wake ramps and creates unwanted OSDs.
+            let keyboard = crate::hardware::sysfs::read_backlight_level();
+            if previous.is_some_and(|old| old != keyboard) {
+                let _ = action("keyboard_brightness");
             }
-            previous = Some(current);
+            previous = Some(keyboard);
             std::thread::sleep(Duration::from_millis(350));
         }
     });
 }
+
 pub fn start() {
     start_feedback();
     let shared = std::sync::Arc::new(std::sync::Mutex::new((
