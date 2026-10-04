@@ -39,3 +39,13 @@ References: https://www.asus.com/us/supportonly/ux8406ca/helpdesk_manual/ and ht
 ### Feedback compatibility
 
 The session agent observes confirmed speaker/microphone and primary screen/keyboard brightness changes every 350 ms and forwards changes to Plasma OSD. This covers firmware and legacy handlers that bypass KDE shortcuts, including changes from desktop sliders. It seeds initial state without displaying startup banners and honors the extra feedback toggle. Native and forwarded feedback reuse the same Plasma widget.
+
+### October 4 responsiveness and charging fixes
+
+USB cable charging and physical docking expose the same keyboard ID and USB port on this machine. The Desktop & keyboard page now offers “Keep both screens on when using USB”; this overrides dock display suppression without disabling USB remapping. It also keeps both panels on when physically docked. Existing installs default to previous behavior; the development machine has the override enabled at the user's request.
+
+Idle audio feedback uses one persistent pactl subscription rather than two wpctl launches every 350 ms. Screen/keyboard brightness still reads sysfs without subprocesses. Background status polling no longer duplicates root compositor queries; user display liveness queries run every five seconds instead of every second. Static status dots replace continuous GPU animations. Desktop display updates can take up to five seconds to appear in background status. libpulse supplies pactl on Arch.
+
+Validation: 145 preexisting Rust library tests passed, new charging override test passed, TypeScript/Vite frontend built. Wireless input sample: 133 event batches, p95 kernel-to-reader delivery 1.41 ms, max 4.70 ms; this does not measure over-the-air latency. GPU attribution needs privileged fdinfo access and is not yet complete. No recent GPU reset/oom log entries were observed. Root daemon installation remains necessary to apply its reduced display polling.
+
+Battery evidence: September 30 saved health 91.5379%; October 4 full 67.697 Wh / design 75.076 Wh = 90.1713%, cycle count 28, charge ceiling 75%. These are firmware estimates and establish neither initial-new capacity nor the amount of physical degradation during ownership.

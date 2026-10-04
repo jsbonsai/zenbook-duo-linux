@@ -2,7 +2,7 @@ use crate::hardware::{display_layout, sysfs};
 use crate::models::{ConnectionType, DisplayLayout, DuoStatus, Orientation};
 use crate::runtime::host::{CommandRunner, ProcessCommandRunner};
 
-pub fn current_status() -> DuoStatus {
+pub fn current_status_without_layout() -> DuoStatus {
     let mut status = sysfs::get_full_status();
     let connection_type = sysfs::detect_connection_type();
     status.keyboard_attached = keyboard_attached(&connection_type);
@@ -10,6 +10,10 @@ pub fn current_status() -> DuoStatus {
     let host = ProcessCommandRunner;
     status.wifi_enabled = wifi_enabled_with(&host);
     status.bluetooth_enabled = bluetooth_enabled_with(&host);
+    status
+}
+pub fn current_status() -> DuoStatus {
+    let mut status = current_status_without_layout();
     apply_layout_to_status(
         &mut status,
         display_layout::get_display_layout().ok().as_ref(),

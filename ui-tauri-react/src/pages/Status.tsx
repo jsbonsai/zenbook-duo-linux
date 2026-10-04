@@ -363,9 +363,6 @@ function StatusDot({
 }) {
   return (
     <span className={cn("relative inline-flex", className)}>
-      {active && (
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-40" />
-      )}
       <span
         className={cn(
           "relative inline-block size-2 rounded-full",

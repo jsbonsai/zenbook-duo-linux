@@ -13,21 +13,29 @@ use crate::runtime::state::RuntimeState;
 pub fn start(state: Arc<RwLock<RuntimeState>>) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_secs(1));
+        let mut last_layout = tokio::time::Instant::now() - Duration::from_secs(5);
         loop {
             interval.tick().await;
 
-            let mut next_status = crate::runtime::probe::current_status();
+            let mut next_status = crate::runtime::probe::current_status_without_layout();
+            let guard = state.read().await;
+            next_status.monitor_count = guard.status.monitor_count;
+            next_status.orientation = guard.status.orientation.clone();
+            drop(guard);
             let session_connected = {
                 let guard = state.read().await;
                 guard.session_agent.connected
             };
             next_status.service_active = session_connected;
 
-            if let Some(layout) =
-                crate::runtime::daemon::session_display_layout_for_liveness(state.clone()).await
-            {
-                crate::runtime::probe::apply_layout_to_status(&mut next_status, Some(&layout));
-                next_status.service_active = true;
+            if last_layout.elapsed() >= Duration::from_secs(5) {
+                if let Some(layout) =
+                    crate::runtime::daemon::session_display_layout_for_liveness(state.clone()).await
+                {
+                    crate::runtime::probe::apply_layout_to_status(&mut next_status, Some(&layout));
+                    next_status.service_active = true;
+                }
+                last_layout = tokio::time::Instant::now();
             }
 
             let mut guard = state.write().await;

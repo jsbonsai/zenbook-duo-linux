@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type DesktopSettings = {
-  typingGuard: boolean; typingDelayMs: number; hudEnabled: boolean; terminal: string;
+  keepDualOnUsb: boolean; typingGuard: boolean; typingDelayMs: number; hudEnabled: boolean; terminal: string;
   f7Action: string; f8Action: string; f12Action: string;
   upperWallpaper: string; lowerWallpaper: string; syncWallpapers: boolean;
 };
@@ -88,6 +88,8 @@ export default function Desktop() {
     </section>
     <section className="space-y-4 rounded-xl border p-5">
       <h2 className="font-medium">Keyboard actions</h2>
+      <div className="flex items-center gap-3"><Switch id="usb-charge" checked={settings.keepDualOnUsb} onCheckedChange={keepDualOnUsb => update({ keepDualOnUsb })}/><Label htmlFor="usb-charge">Keep both screens on when using USB</Label></div>
+      <p className="text-xs text-muted-foreground">Enable when charging the keyboard with a cable. USB and the keyboard dock report the same device, so this also keeps the lower screen on when physically docked. Save before reconnecting the cable.</p>
       {(["f7Action", "f8Action", "f12Action"] as const).map((key, i) => <div key={key} className="flex items-center gap-4"><Label className="w-12" htmlFor={key}>{["F7", "F8", "F12"][i]}</Label><Select value={settings[key]} onValueChange={value => update({ [key]: value })}><SelectTrigger id={key} className="flex-1"><SelectValue/></SelectTrigger><SelectContent>{actions.map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select><Button variant="outline" disabled={busy || settings[key] === "none"} onClick={() => void test(settings[key])}>Try</Button></div>)}
       <div className="flex items-center gap-4"><Label className="w-12">Terminal</Label><Select value={settings.terminal} onValueChange={terminal => update({ terminal })}><SelectTrigger className="w-48"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="konsole">Konsole</SelectItem><SelectItem value="alacritty">Alacritty</SelectItem></SelectContent></Select></div>
       <p className="text-xs text-muted-foreground">USB media mode: F9 toggles touchpad, F10 toggles mic mute, F11 opens emoji. Fn-lock affects which events the keyboard sends. Bluetooth vendor keys depend on keyboard firmware.</p>

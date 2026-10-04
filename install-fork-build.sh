@@ -6,7 +6,7 @@ TASK_REPO=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 TASK_BUILD="$TASK_REPO/ui-tauri-react/src-tauri/target/release"
 [[ -f "$TASK_BUILD/fork-build.sha256" ]] || { echo 'Build is not validated yet.' >&2; exit 1; }
 (cd "$TASK_BUILD" && sha256sum -c fork-build.sha256)
-for cmd in qdbus6 kdialog wpctl plasma-emojier; do
+for cmd in qdbus6 kdialog wpctl pactl plasma-emojier; do
  command -v "$cmd" >/dev/null || { echo "Missing dependency: $cmd. Install KDE desktop dependencies first." >&2; exit 1; }
 done
 TASK_BACKUP="/usr/local/libexec/zenbook-duo-before-0.4.0-$(date -u +%Y%m%dT%H%M%SZ)"

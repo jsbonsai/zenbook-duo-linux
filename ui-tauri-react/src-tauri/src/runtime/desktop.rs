@@ -410,53 +410,89 @@ fn audio_state(output: &str) -> Option<(u32, bool)> {
     }
     Some(((volume * 100.0).round() as u32, output.contains("[MUTED]")))
 }
+fn show_audio_changes(previous: &mut Option<(Option<(u32, bool)>, Option<(u32, bool)>)>) {
+    let volume = run("wpctl", &["get-volume", "@DEFAULT_AUDIO_SINK@"])
+        .ok()
+        .and_then(|s| audio_state(&s));
+    let microphone = run("wpctl", &["get-volume", "@DEFAULT_AUDIO_SOURCE@"])
+        .ok()
+        .and_then(|s| audio_state(&s));
+    if let Some((old_volume, old_microphone)) = *previous {
+        if volume != old_volume {
+            if let Some((percent, muted)) = volume {
+                let _ = if muted {
+                    hint("audio-volume-muted", "Sound muted")
+                } else {
+                    osd("volumeChanged", &[&percent.to_string()])
+                };
+            }
+        }
+        if microphone != old_microphone {
+            if let Some((_, muted)) = microphone {
+                let _ = hint(
+                    if muted {
+                        "microphone-sensitivity-muted"
+                    } else {
+                        "audio-input-microphone"
+                    },
+                    if muted {
+                        "Microphone muted"
+                    } else {
+                        "Microphone enabled"
+                    },
+                );
+            }
+        }
+    }
+    *previous = Some((volume, microphone));
+}
+fn audio_event(line: &str) -> bool {
+    line.contains(" on sink #") || line.contains(" on source #") || line.contains(" on server #")
+}
 fn start_feedback() {
+    // One persistent subscription replaces hundreds of idle wpctl launches/minute.
+    std::thread::spawn(|| {
+        use std::io::{BufRead, BufReader};
+        loop {
+            let mut previous = None;
+            match Command::new("pactl")
+                .arg("subscribe")
+                .env("LC_ALL", "C")
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+            {
+                Ok(mut child) => {
+                    show_audio_changes(&mut previous);
+                    if let Some(stdout) = child.stdout.take() {
+                        for line in BufReader::new(stdout).lines() {
+                            match line {
+                                Ok(line) if audio_event(&line) => show_audio_changes(&mut previous),
+                                Ok(_) => {}
+                                Err(_) => break,
+                            }
+                        }
+                    }
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+                Err(e) => log::warn!("Duo audio subscription: {e}"),
+            }
+            std::thread::sleep(Duration::from_secs(5));
+        }
+    });
     std::thread::spawn(|| {
         let mut previous = None;
         loop {
-            let volume = run("wpctl", &["get-volume", "@DEFAULT_AUDIO_SINK@"])
-                .ok()
-                .and_then(|s| audio_state(&s));
-            let microphone = run("wpctl", &["get-volume", "@DEFAULT_AUDIO_SOURCE@"])
-                .ok()
-                .and_then(|s| audio_state(&s));
-            let brightness = crate::hardware::sysfs::read_display_brightness();
-            let keyboard = crate::hardware::sysfs::read_backlight_level();
-            let current = (volume, microphone, brightness, keyboard);
-            if let Some(old) = previous {
-                let (old_volume, old_microphone, old_brightness, old_keyboard) = old;
-                if volume != old_volume {
-                    if let Some((percent, muted)) = volume {
-                        let result = if muted {
-                            hint("audio-volume-muted", "Sound muted")
-                        } else {
-                            osd("volumeChanged", &[&percent.to_string()])
-                        };
-                        if let Err(e) = result {
-                            log::warn!("Duo volume feedback: {e}");
-                        }
-                    }
-                }
-                if microphone != old_microphone {
-                    if let Some((_, muted)) = microphone {
-                        let _ = hint(
-                            if muted {
-                                "microphone-sensitivity-muted"
-                            } else {
-                                "audio-input-microphone"
-                            },
-                            if muted {
-                                "Microphone muted"
-                            } else {
-                                "Microphone enabled"
-                            },
-                        );
-                    }
-                }
-                if brightness != old_brightness {
+            let current = (
+                crate::hardware::sysfs::read_display_brightness(),
+                crate::hardware::sysfs::read_backlight_level(),
+            );
+            if let Some((brightness, keyboard)) = previous {
+                if brightness != current.0 {
                     let _ = action("brightness");
                 }
-                if keyboard != old_keyboard {
+                if keyboard != current.1 {
                     let _ = action("keyboard_brightness");
                 }
             }
@@ -590,6 +626,10 @@ mod tests {
     use super::*;
     #[test]
     fn audio_feedback_parses_actual_state() {
+        assert!(audio_event("Event 'change' on sink #42"));
+        assert!(audio_event("Event 'change' on source #43"));
+        assert!(audio_event("Event 'change' on server #0"));
+        assert!(!audio_event("Event 'change' on sink-input #44"));
         assert_eq!(audio_state("Volume: 0.42"), Some((42, false)));
         assert_eq!(audio_state("Volume: 1.10 [MUTED]"), Some((110, true)));
         assert_eq!(audio_state("Volume: NaN"), None);

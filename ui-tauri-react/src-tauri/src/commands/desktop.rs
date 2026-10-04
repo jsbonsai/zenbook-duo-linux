@@ -5,6 +5,7 @@ use std::{fs, path::PathBuf, process::Command};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct DesktopSettings {
+    pub keep_dual_on_usb: bool,
     pub typing_guard: bool,
     pub typing_delay_ms: u64,
     pub hud_enabled: bool,
@@ -19,6 +20,7 @@ pub struct DesktopSettings {
 impl Default for DesktopSettings {
     fn default() -> Self {
         Self {
+            keep_dual_on_usb: false,
             typing_guard: true,
             typing_delay_ms: 750,
             hud_enabled: true,
